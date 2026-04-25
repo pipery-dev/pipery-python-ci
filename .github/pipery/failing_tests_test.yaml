@@ -1,0 +1,15 @@
+name: failing-tests-detected
+description: Action must exit non-zero when pytest tests fail.
+source_path: test-project-failing-tests
+inputs:
+  project_path: test-project-failing-tests
+  skip_sast: "true"
+  skip_sca: "true"
+  skip_lint: "true"
+  skip_build: "true"
+  skip_versioning: "true"
+  skip_packaging: "true"
+  skip_release: "true"
+  skip_reintegration: "true"
+expect:
+  failure: true
