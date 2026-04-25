@@ -1,0 +1,182 @@
+name: 'Pipery Python CI'
+description: 'CI pipeline for Python: SAST, SCA, lint, build, test, versioning, packaging, release, reintegration'
+inputs:
+  project_path:
+    description: 'Path to the project source tree.'
+    required: false
+    default: '.'
+  config_file:
+    description: 'Path to pipery config file.'
+    required: false
+    default: '.github/pipery/config.yaml'
+  package_manager:
+    description: 'Package manager: auto, setuptools, poetry, uv.'
+    required: false
+    default: 'auto'
+  python_version:
+    description: 'Python version to use.'
+    required: false
+    default: '3.11'
+  skip_sast:
+    description: 'Skip SAST scan.'
+    required: false
+    default: 'false'
+  skip_sca:
+    description: 'Skip SCA scan.'
+    required: false
+    default: 'false'
+  skip_lint:
+    description: 'Skip lint step.'
+    required: false
+    default: 'false'
+  skip_build:
+    description: 'Skip build step.'
+    required: false
+    default: 'false'
+  skip_test:
+    description: 'Skip test step.'
+    required: false
+    default: 'false'
+  skip_versioning:
+    description: 'Skip versioning step.'
+    required: false
+    default: 'false'
+  skip_packaging:
+    description: 'Skip packaging step.'
+    required: false
+    default: 'false'
+  skip_release:
+    description: 'Skip release step.'
+    required: false
+    default: 'false'
+  skip_reintegration:
+    description: 'Skip reintegration step.'
+    required: false
+    default: 'false'
+  version_bump:
+    description: 'Version bump kind: patch, minor, major.'
+    required: false
+    default: 'patch'
+  registry:
+    description: 'Registry target for release.'
+    required: false
+    default: 'pypi'
+  pypi_token:
+    description: 'PyPI API token for publishing.'
+    required: false
+    default: ''
+  github_token:
+    description: 'GitHub token for reintegration.'
+    required: false
+    default: ''
+  log_file:
+    description: 'Path to the JSONL log file.'
+    required: false
+    default: 'pipery.jsonl'
+outputs:
+  version:
+    description: 'The new version string after versioning step.'
+    value: ${{ steps.version.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - name: Setup psh
+      shell: bash
+      run: ${{ github.action_path }}/src/setup-psh.sh
+      env:
+        INPUT_PROJECT_PATH: ${{ inputs.project_path }}
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
+
+    - name: Install pipery-tooling
+      shell: bash
+      run: pip install git+https://github.com/pipery-dev/pipery-tooling.git -q
+
+    - name: SAST scan
+      if: ${{ inputs.skip_sast != 'true' }}
+      shell: bash
+      run: ${{ github.action_path }}/src/step-sast.sh
+      env:
+        INPUT_PROJECT_PATH: ${{ inputs.project_path }}
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
+
+    - name: SCA scan
+      if: ${{ inputs.skip_sca != 'true' }}
+      shell: bash
+      run: ${{ github.action_path }}/src/step-sca.sh
+      env:
+        INPUT_PROJECT_PATH: ${{ inputs.project_path }}
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
+
+    - name: Lint
+      if: ${{ inputs.skip_lint != 'true' }}
+      shell: bash
+      run: ${{ github.action_path }}/src/step-lint.sh
+      env:
+        INPUT_PROJECT_PATH: ${{ inputs.project_path }}
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
+
+    - name: Build
+      if: ${{ inputs.skip_build != 'true' }}
+      shell: bash
+      run: ${{ github.action_path }}/src/step-build.sh
+      env:
+        INPUT_PROJECT_PATH: ${{ inputs.project_path }}
+        INPUT_PACKAGE_MANAGER: ${{ inputs.package_manager }}
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
+
+    - name: Test
+      if: ${{ inputs.skip_test != 'true' }}
+      shell: bash
+      run: ${{ github.action_path }}/src/step-test.sh
+      env:
+        INPUT_PROJECT_PATH: ${{ inputs.project_path }}
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
+
+    - name: Version
+      id: version
+      if: ${{ inputs.skip_versioning != 'true' }}
+      shell: bash
+      run: ${{ github.action_path }}/src/step-version.sh
+      env:
+        INPUT_PROJECT_PATH: ${{ inputs.project_path }}
+        INPUT_VERSION_BUMP: ${{ inputs.version_bump }}
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
+
+    - name: Package
+      if: ${{ inputs.skip_packaging != 'true' }}
+      shell: bash
+      run: ${{ github.action_path }}/src/step-package.sh
+      env:
+        INPUT_PROJECT_PATH: ${{ inputs.project_path }}
+        INPUT_PACKAGE_MANAGER: ${{ inputs.package_manager }}
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
+
+    - name: Release
+      if: ${{ inputs.skip_release != 'true' }}
+      shell: bash
+      run: ${{ github.action_path }}/src/step-release.sh
+      env:
+        INPUT_PROJECT_PATH: ${{ inputs.project_path }}
+        INPUT_PYPI_TOKEN: ${{ inputs.pypi_token }}
+        INPUT_REGISTRY: ${{ inputs.registry }}
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
+
+    - name: Reintegrate
+      if: ${{ inputs.skip_reintegration != 'true' }}
+      shell: bash
+      run: ${{ github.action_path }}/src/step-reintegrate.sh
+      env:
+        INPUT_PROJECT_PATH: ${{ inputs.project_path }}
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+
+    - name: Upload logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pipery-ci-logs
+        path: ${{ inputs.log_file }}
+
+branding:
+  icon: package
+  color: blue

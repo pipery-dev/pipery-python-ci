@@ -1,0 +1,16 @@
+name: basic-test
+description: Run Python CI action against test fixture, skipping release/versioning/reintegration.
+source_path: test-project
+inputs:
+  project_path: test-project
+  skip_sast: "true"
+  skip_sca: "true"
+  skip_release: "true"
+  skip_versioning: "true"
+  skip_reintegration: "true"
+expect:
+  log_path: pipery.jsonl
+  success_values: [success, passed, ok, succeeded]
+  required_fields:
+    - name: event
+      value: build
