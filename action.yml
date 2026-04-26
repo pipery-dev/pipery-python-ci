@@ -69,6 +69,10 @@ inputs:
     description: 'GitHub token for reintegration.'
     required: false
     default: ''
+  target_branch:
+    description: 'Target branch for reintegration.'
+    required: false
+    default: 'main'
   log_file:
     description: 'Path to the JSONL log file.'
     required: false
@@ -86,6 +90,12 @@ runs:
       env:
         INPUT_PROJECT_PATH: ${{ inputs.project_path }}
         INPUT_LOG_FILE: ${{ inputs.log_file }}
+
+    - name: Load config
+      shell: bash
+      run: ${{ github.action_path }}/src/read-config.sh
+      env:
+        INPUT_CONFIG_FILE: ${{ inputs.config_file }}
 
     - name: Install pipery-tooling
       shell: bash
@@ -168,6 +178,7 @@ runs:
       env:
         INPUT_PROJECT_PATH: ${{ inputs.project_path }}
         INPUT_LOG_FILE: ${{ inputs.log_file }}
+        INPUT_TARGET_BRANCH: ${{ inputs.target_branch }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
 
     - name: Upload logs

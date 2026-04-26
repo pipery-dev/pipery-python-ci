@@ -11,7 +11,7 @@ if command -v pipery-steps >/dev/null 2>&1; then
   pipery-steps reintegrate \
     --project-path "$PROJECT" \
     --source-branch "${GITHUB_REF_NAME:-main}" \
-    --target-branch main \
+    --target-branch "${INPUT_TARGET_BRANCH:-main}" \
     --log-file "$LOG"
 else
   echo "==> Reintegrate: pipery-steps not available; skipping gracefully"
