@@ -1,0 +1,26 @@
+owner = "pipery-dev"
+action_name = "pipery-python-ci"
+title = "Pipery Python CI"
+description = "CI pipeline for Python: SAST, SCA, lint, build, test, versioning, packaging, release, reintegration"
+marketplace_category = "continuous-integration"
+author = "pipery-dev"
+action_type = "composite"
+default_branch = "main"
+version = "0.1.0"
+repository_visibility = "public"
+test_command = ""
+test_project_path = "test-project"
+test_project_input = "project_path"
+test_log_path = "pipery.jsonl"
+test_log_success_values = ["success", "succeeded", "passed", "ok"]
+cleanup_paths = ["pipery.jsonl"]
+
+[[inputs]]
+name = "project_path"
+description = "Path to the project source tree the action should operate on."
+required = false
+default = "."
+
+[[test_log_required_fields]]
+name = "event"
+value = "build"

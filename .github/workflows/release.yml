@@ -1,0 +1,23 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Semver bump kind
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    uses: pipery-dev/pipery-tooling/.github/workflows/pipery-release.yml@main
+    with:
+      bump: ${{ inputs.bump }}

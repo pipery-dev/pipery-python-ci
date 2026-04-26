@@ -1,0 +1,15 @@
+name: lint-errors-detected
+description: Action must exit non-zero when ruff finds lint errors.
+source_path: test-project-lint-errors
+inputs:
+  project_path: test-project-lint-errors
+  skip_sast: "true"
+  skip_sca: "true"
+  skip_build: "true"
+  skip_test: "true"
+  skip_versioning: "true"
+  skip_packaging: "true"
+  skip_release: "true"
+  skip_reintegration: "true"
+expect:
+  failure: true

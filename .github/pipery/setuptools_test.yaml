@@ -1,0 +1,17 @@
+name: setuptools-package-manager
+description: Verify the action works with a setuptools/setup.py Python project.
+source_path: test-project-setuptools
+inputs:
+  project_path: test-project-setuptools
+  package_manager: setuptools
+  skip_sast: "true"
+  skip_sca: "true"
+  skip_release: "true"
+  skip_versioning: "true"
+  skip_reintegration: "true"
+expect:
+  log_path: pipery.jsonl
+  success_values: [success, passed, ok, succeeded]
+  required_fields:
+    - name: event
+      value: build
