@@ -2,7 +2,8 @@
 set -euo pipefail
 
 LOG="${INPUT_LOG_FILE:-pipery.jsonl}"
-SHORT_SHA="${GITHUB_SHA:0:7}"
+SHORT_SHA="${GITHUB_SHA:-}"
+SHORT_SHA="${SHORT_SHA:0:7}"
 
 if [ -z "${INPUT_PYPI_TOKEN:-}" ]; then
   echo "No PYPI_TOKEN provided, skipping release."
