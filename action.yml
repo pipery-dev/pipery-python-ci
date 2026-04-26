@@ -33,6 +33,10 @@ inputs:
     description: 'Skip build step.'
     required: false
     default: 'false'
+  tests_path:
+    description: 'Path passed to pytest (directory, file, or nodeids). Defaults to project_path.'
+    required: false
+    default: ''
   skip_test:
     description: 'Skip test step.'
     required: false
@@ -140,6 +144,7 @@ runs:
       run: ${{ github.action_path }}/src/step-test.sh
       env:
         INPUT_PROJECT_PATH: ${{ inputs.project_path }}
+        INPUT_TESTS_PATH: ${{ inputs.tests_path }}
         INPUT_LOG_FILE: ${{ inputs.log_file }}
 
     - name: Version
@@ -170,6 +175,7 @@ runs:
         INPUT_PYPI_TOKEN: ${{ inputs.pypi_token }}
         INPUT_REGISTRY: ${{ inputs.registry }}
         INPUT_LOG_FILE: ${{ inputs.log_file }}
+        GITHUB_SHA: ${{ github.sha }}
 
     - name: Reintegrate
       if: ${{ inputs.skip_reintegration != 'true' }}
