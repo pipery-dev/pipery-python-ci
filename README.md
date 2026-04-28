@@ -3,6 +3,7 @@
 Reusable GitHub Action for a complete Python CI pipeline with structured logging via [Pipery](https://pipery.dev).
 
 [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-Pipery%20Python%20CI-blue?logo=github)](https://github.com/marketplace/actions/pipery-python-ci)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## Usage
