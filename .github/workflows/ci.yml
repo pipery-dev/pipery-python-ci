@@ -24,6 +24,6 @@ jobs:
       - name: Install pipery-tooling
         env:
           GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
-        run: pip install "git+https://${GH_TOKEN}@github.com/pipery-dev/pipery-tooling.git"
+        run: pip install "git+https://x-access-token:${GH_TOKEN}@github.com/pipery-dev/pipery-tooling.git"
       - name: Test action
         run: pipery-actions test --repo .
