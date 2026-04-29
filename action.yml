@@ -187,12 +187,29 @@ runs:
         INPUT_TARGET_BRANCH: ${{ inputs.target_branch }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
 
-    - name: Upload logs
+    - id: upload-logs
+      name: Upload logs
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: pipery-ci-logs
+        name: pipery-logs
         path: ${{ inputs.log_file }}
+        if-no-files-found: ignore
+        compression-level: 9
+
+    - name: Pipery Dashboard
+      if: always()
+      shell: bash
+      env:
+        ARTIFACT_URL: ${{ steps.upload-logs.outputs.artifact-url }}
+      run: |
+        if [ -n "${ARTIFACT_URL:-}" ]; then
+          encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$ARTIFACT_URL")
+          dashboard="https://dash.pipery.dev/?artifact=${encoded}"
+          echo "### Pipery Dashboard" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "View your pipeline logs: [open in Pipery Dashboard]($dashboard)" >> "$GITHUB_STEP_SUMMARY"
+        fi
 
 branding:
   icon: code
