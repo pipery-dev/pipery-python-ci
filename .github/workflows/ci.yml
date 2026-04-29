@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Lint shell scripts
-        run: shellcheck src/*.sh
+        run: shellcheck --shell=bash src/*.sh
 
   Tests:
     runs-on: ubuntu-latest
@@ -22,6 +22,8 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install pipery-tooling
-        run: pip install git+https://github.com/pipery-dev/pipery-tooling.git
+        env:
+          GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
+        run: pip install "git+https://${GH_TOKEN}@github.com/pipery-dev/pipery-tooling.git"
       - name: Test action
         run: pipery-actions test --repo .
