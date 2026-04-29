@@ -34,7 +34,12 @@ echo "    project_path=${INPUT_PROJECT_PATH}"
 echo "    log_file=${INPUT_LOG_FILE}"
 
 # Setup psh
-"${SRC_DIR}/setup-psh.sh"
+# In test mode use a bash wrapper for psh; the real psh binary has a Go runtime
+  # incompatibility (newosproc) with the GitHub Actions runner seccomp profile.
+  mkdir -p /tmp/pipery-test-bin
+  printf '#!/bin/bash\nexec bash "$@"\n' > /tmp/pipery-test-bin/psh
+  chmod +x /tmp/pipery-test-bin/psh
+  export PATH="/tmp/pipery-test-bin:$PATH"
 
 # Install pipery-tooling (skip if already installed)
 if ! command -v pipery-steps >/dev/null 2>&1; then
