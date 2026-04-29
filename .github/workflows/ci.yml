@@ -7,5 +7,23 @@ on:
   pull_request:
 
 jobs:
-  test:
-    uses: pipery-dev/pipery-tooling/.github/workflows/pipery-test.yml@main
+  Lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint shell scripts
+        run: shellcheck --shell=bash src/*.sh
+
+  Tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pipery-tooling
+        env:
+          GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
+        run: pip install "git+https://x-access-token:${GH_TOKEN}@github.com/pipery-dev/pipery-tooling.git"
+      - name: Test action
+        run: pipery-actions test --repo .
