@@ -18,9 +18,123 @@ cleanup_paths = ["pipery.jsonl"]
 
 [[inputs]]
 name = "project_path"
-description = "Path to the project source tree the action should operate on."
+description = "Path to the project source tree."
 required = false
 default = "."
+
+[[inputs]]
+name = "config_file"
+description = "Path to pipery config file."
+required = false
+default = ".github/pipery/config.yaml"
+
+[[inputs]]
+name = "package_manager"
+description = "Package manager: auto, setuptools, poetry, uv."
+required = false
+default = "auto"
+
+[[inputs]]
+name = "python_version"
+description = "Python version to use."
+required = false
+default = "3.11"
+
+[[inputs]]
+name = "skip_sast"
+description = "Skip SAST scan."
+required = false
+default = "false"
+
+[[inputs]]
+name = "skip_sca"
+description = "Skip SCA scan."
+required = false
+default = "false"
+
+[[inputs]]
+name = "skip_lint"
+description = "Skip lint step."
+required = false
+default = "false"
+
+[[inputs]]
+name = "skip_build"
+description = "Skip build step."
+required = false
+default = "false"
+
+[[inputs]]
+name = "tests_path"
+description = "Path passed to pytest (directory, file, or nodeids). Defaults to project_path."
+required = false
+default = ""
+
+[[inputs]]
+name = "skip_test"
+description = "Skip test step."
+required = false
+default = "false"
+
+[[inputs]]
+name = "skip_versioning"
+description = "Skip versioning step."
+required = false
+default = "false"
+
+[[inputs]]
+name = "skip_packaging"
+description = "Skip packaging step."
+required = false
+default = "false"
+
+[[inputs]]
+name = "skip_release"
+description = "Skip release step."
+required = false
+default = "false"
+
+[[inputs]]
+name = "skip_reintegration"
+description = "Skip reintegration step."
+required = false
+default = "false"
+
+[[inputs]]
+name = "version_bump"
+description = "Version bump kind: patch, minor, major."
+required = false
+default = "patch"
+
+[[inputs]]
+name = "registry"
+description = "Registry target for release."
+required = false
+default = "pypi"
+
+[[inputs]]
+name = "pypi_token"
+description = "PyPI API token for publishing."
+required = false
+default = ""
+
+[[inputs]]
+name = "github_token"
+description = "GitHub token for reintegration."
+required = false
+default = ""
+
+[[inputs]]
+name = "target_branch"
+description = "Target branch for reintegration."
+required = false
+default = "main"
+
+[[inputs]]
+name = "log_file"
+description = "Path to the JSONL log file."
+required = false
+default = "pipery.jsonl"
 
 [[test_log_required_fields]]
 name = "event"
