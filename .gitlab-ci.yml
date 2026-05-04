@@ -1,0 +1,354 @@
+# GitLab CI Pipeline for pipery-python-ci
+# This is the GitLab CI equivalent of the GitHub Actions Python CI workflow
+#
+# SETUP INSTRUCTIONS:
+# 1. Copy this file to your pipery-python-ci repository as .gitlab-ci.yml
+# 2. Update the variables section with your specific configuration
+# 3. Configure protected variables in GitLab CI/CD settings (Settings > CI/CD > Variables)
+# 4. Set any skip_* variables to 'true' if you want to disable specific steps
+#
+# VARIABLES:
+# These correspond to the GitHub Action inputs. Customize as needed.
+
+variables:
+  PROJECT_PATH: "."
+  CONFIG_FILE: ".github/pipery/config.yaml"
+  PYTHON_VERSION: "3.11"
+  PACKAGE_MANAGER: "auto"  # auto, setuptools, poetry, uv
+  # Security scanning controls
+  SKIP_SAST: "false"
+  SKIP_SCA: "false"
+  SKIP_LINT: "false"
+  SKIP_BUILD: "false"
+  SKIP_TEST: "false"
+  SKIP_VERSIONING: "false"
+  SKIP_PACKAGING: "false"
+  SKIP_RELEASE: "false"
+  SKIP_REINTEGRATION: "false"
+  # Build configuration
+  TESTS_PATH: ""  # Leave empty to default to project_path
+  VERSION_BUMP: "patch"
+  # Registry configuration
+  REGISTRY: "pypi"
+  # Secrets (set in GitLab Protected Variables)
+  # PYPI_TOKEN: (set in GitLab Protected Variables)
+  # GITHUB_TOKEN: (set in GitLab Protected Variables)
+  # Logging
+  LOG_FILE: "pipery.jsonl"
+  TARGET_BRANCH: "main"
+
+stages:
+  - checkout
+  - setup
+  - sast
+  - sca
+  - lint
+  - build
+  - test
+  - versioning
+  - packaging
+  - release
+  - reintegration
+  - logs
+
+# ============================================================================
+# CHECKOUT & SETUP STAGE
+# ============================================================================
+
+checkout:
+  stage: checkout
+  image: alpine:latest
+  script:
+    - echo "Repository already checked out by GitLab CI"
+    - ls -la
+  artifacts:
+    paths:
+      - .git/
+    expire_in: 1 day
+
+setup:
+  stage: setup
+  image: python:${PYTHON_VERSION}-slim
+  script:
+    - echo "Setting up Python CI environment..."
+    - python --version
+    - pip --version
+    - cd $PROJECT_PATH
+    - |
+      if [ "$PACKAGE_MANAGER" = "poetry" ] || [ "$PACKAGE_MANAGER" = "auto" ] && [ -f "pyproject.toml" ]; then
+        pip install poetry
+        poetry install
+      elif [ "$PACKAGE_MANAGER" = "uv" ]; then
+        pip install uv
+        uv pip install -e .
+      else
+        pip install -e .
+      fi
+    - echo "Setup complete"
+  artifacts:
+    paths:
+      - $PROJECT_PATH/.venv/
+    expire_in: 1 day
+
+# ============================================================================
+# SECURITY STAGES
+# ============================================================================
+
+sast_scan:
+  stage: sast
+  image: python:${PYTHON_VERSION}-slim
+  before_script:
+    - pip install bandit pipery-tooling
+  script:
+    - echo "Running SAST scan using pipery-tooling..."
+    - pipery-tooling sast --project-path $PROJECT_PATH --config $CONFIG_FILE --log-file $LOG_FILE
+    - echo "Running Bandit SAST scan..."
+    - bandit -r $PROJECT_PATH -f json -o bandit-report.json || true
+    - echo "SAST scan complete"
+  allow_failure: true
+  rules:
+    - if: '$SKIP_SAST == "true"'
+      when: never
+    - when: on_success
+  artifacts:
+    paths:
+      - bandit-report.json
+      - $LOG_FILE
+    expire_in: 30 days
+
+sca_scan:
+  stage: sca
+  image: python:${PYTHON_VERSION}-slim
+  before_script:
+    - pip install safety pipery-tooling
+  script:
+    - echo "Running SCA scan using pipery-tooling..."
+    - pipery-tooling sca --project-path $PROJECT_PATH --config $CONFIG_FILE --log-file $LOG_FILE
+    - echo "Running Safety SCA scan..."
+    - safety check --json || true
+    - echo "SCA scan complete"
+  allow_failure: true
+  rules:
+    - if: '$SKIP_SCA == "true"'
+      when: never
+    - when: on_success
+  artifacts:
+    paths:
+      - $LOG_FILE
+    expire_in: 30 days
+
+# ============================================================================
+# LINT STAGE
+# ============================================================================
+
+lint:
+  stage: lint
+  image: python:${PYTHON_VERSION}-slim
+  before_script:
+    - pip install black isort pylint flake8
+  script:
+    - cd $PROJECT_PATH
+    - echo "Running linters..."
+    - black --check . || true
+    - isort --check-only . || true
+    - pylint $(find . -name "*.py" -type f) || true
+    - flake8 . || true
+    - echo "Lint stage complete"
+  rules:
+    - if: '$SKIP_LINT == "true"'
+      when: never
+    - when: on_success
+  allow_failure: true
+
+# ============================================================================
+# BUILD STAGE
+# ============================================================================
+
+build:
+  stage: build
+  image: python:${PYTHON_VERSION}-slim
+  before_script:
+    - pip install build wheel setuptools
+  script:
+    - cd $PROJECT_PATH
+    - echo "Building Python package..."
+    - python -m build
+    - ls -la dist/
+    - echo "Build complete"
+  rules:
+    - if: '$SKIP_BUILD == "true"'
+      when: never
+    - when: on_success
+  artifacts:
+    paths:
+      - $PROJECT_PATH/dist/
+      - $PROJECT_PATH/build/
+    expire_in: 1 day
+
+# ============================================================================
+# TEST STAGE
+# ============================================================================
+
+test:
+  stage: test
+  image: python:${PYTHON_VERSION}-slim
+  dependencies:
+    - build
+    - setup
+  before_script:
+    - pip install pytest pytest-cov
+  script:
+    - cd $PROJECT_PATH
+    - |
+      if [ -z "$TESTS_PATH" ]; then
+        TESTS_PATH="."
+      fi
+    - echo "Running tests with pytest from: $TESTS_PATH"
+    - pytest $TESTS_PATH -v --cov=$PROJECT_PATH --cov-report=html --cov-report=xml --cov-report=term
+    - echo "Tests complete"
+  rules:
+    - if: '$SKIP_TEST == "true"'
+      when: never
+    - when: on_success
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    paths:
+      - $PROJECT_PATH/htmlcov/
+      - $PROJECT_PATH/coverage.xml
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: $PROJECT_PATH/coverage.xml
+    expire_in: 30 days
+
+# ============================================================================
+# VERSIONING STAGE
+# ============================================================================
+
+versioning:
+  stage: versioning
+  image: python:${PYTHON_VERSION}-slim
+  before_script:
+    - pip install pipery-tooling
+  script:
+    - echo "Running versioning step..."
+    - pipery-tooling version --project-path $PROJECT_PATH --version-bump $VERSION_BUMP --log-file $LOG_FILE
+    - echo "Versioning complete"
+    - |
+      if [ -f "$PROJECT_PATH/setup.py" ]; then
+        grep -E "version\s*=" $PROJECT_PATH/setup.py | head -1 > version_info.txt
+      elif [ -f "$PROJECT_PATH/pyproject.toml" ]; then
+        grep -E "version\s*=" $PROJECT_PATH/pyproject.toml | head -1 > version_info.txt
+      fi
+    - cat version_info.txt
+  rules:
+    - if: '$SKIP_VERSIONING == "true"'
+      when: never
+    - when: on_success
+  artifacts:
+    paths:
+      - version_info.txt
+      - $LOG_FILE
+    expire_in: 30 days
+
+# ============================================================================
+# PACKAGING STAGE
+# ============================================================================
+
+packaging:
+  stage: packaging
+  image: python:${PYTHON_VERSION}-slim
+  dependencies:
+    - build
+    - versioning
+  script:
+    - echo "Verifying Python package..."
+    - cd $PROJECT_PATH
+    - ls -la dist/
+    - echo "Package verification complete"
+  rules:
+    - if: '$SKIP_PACKAGING == "true"'
+      when: never
+    - when: on_success
+  artifacts:
+    paths:
+      - $PROJECT_PATH/dist/
+    expire_in: 30 days
+
+# ============================================================================
+# RELEASE STAGE
+# ============================================================================
+
+release:
+  stage: release
+  image: python:${PYTHON_VERSION}-slim
+  dependencies:
+    - versioning
+    - packaging
+  before_script:
+    - pip install twine
+  script:
+    - echo "Publishing to Python registry: $REGISTRY"
+    - |
+      if [ -z "$PYPI_TOKEN" ]; then
+        echo "ERROR: PYPI_TOKEN not set"
+        exit 1
+      fi
+    - |
+      if [ "$REGISTRY" = "pypi" ]; then
+        python -m twine upload dist/* -u __token__ -p $PYPI_TOKEN
+      else
+        python -m twine upload dist/* --repository-url $REGISTRY -u __token__ -p $PYPI_TOKEN
+      fi
+    - echo "Release complete"
+  rules:
+    - if: '$SKIP_RELEASE == "true"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == $TARGET_BRANCH'
+      when: on_success
+    - when: manual
+  only:
+    - branches
+
+# ============================================================================
+# REINTEGRATION STAGE
+# ============================================================================
+
+reintegration:
+  stage: reintegration
+  image: alpine:latest
+  script:
+    - echo "Reintegration step would update target branch..."
+    - |
+      if [ -z "$GITHUB_TOKEN" ]; then
+        echo "Skipping reintegration: GITHUB_TOKEN not set"
+        exit 0
+      fi
+    - echo "Reintegration complete"
+  rules:
+    - if: '$SKIP_REINTEGRATION == "true"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == $TARGET_BRANCH'
+      when: on_success
+    - when: manual
+  allow_failure: true
+
+# ============================================================================
+# ARTIFACTS & LOGGING
+# ============================================================================
+
+publish_logs:
+  stage: logs
+  image: alpine:latest
+  script:
+    - echo "Collecting logs and artifacts..."
+    - |
+      if [ -f "$LOG_FILE" ]; then
+        echo "Log file size: $(wc -c < $LOG_FILE) bytes"
+      fi
+  artifacts:
+    paths:
+      - $LOG_FILE
+      - version_info.txt
+    expire_in: 90 days
+  when: always
