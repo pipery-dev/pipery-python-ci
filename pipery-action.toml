@@ -26,7 +26,7 @@ default = "."
 name = "config_file"
 description = "Path to pipery config file."
 required = false
-default = ".github/pipery/config.yaml"
+default = ".pipery/config.yaml"
 
 [[inputs]]
 name = "package_manager"

@@ -4,7 +4,7 @@ set -euo pipefail
 # Resolve project path: prefer INPUT_PROJECT_PATH, then PIPERY_TEST_PROJECT_PATH, then cwd
 export INPUT_PROJECT_PATH="${INPUT_PROJECT_PATH:-${PIPERY_TEST_PROJECT_PATH:-.}}"
 export INPUT_LOG_FILE="${INPUT_LOG_FILE:-${PIPERY_LOG_PATH:-pipery.jsonl}}"
-export INPUT_CONFIG_FILE="${INPUT_CONFIG_FILE:-.github/pipery/config.yaml}"
+export INPUT_CONFIG_FILE="${INPUT_CONFIG_FILE:-.pipery/config.yaml}"
 export INPUT_PACKAGE_MANAGER="${INPUT_PACKAGE_MANAGER:-auto}"
 export INPUT_PYTHON_VERSION="${INPUT_PYTHON_VERSION:-3.11}"
 export INPUT_SKIP_SAST="${INPUT_SKIP_SAST:-false}"

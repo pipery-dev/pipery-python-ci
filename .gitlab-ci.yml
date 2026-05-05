@@ -12,7 +12,7 @@
 
 variables:
   PROJECT_PATH: "."
-  CONFIG_FILE: ".github/pipery/config.yaml"
+  CONFIG_FILE: ".pipery/config.yaml"
   PYTHON_VERSION: "3.11"
   PACKAGE_MANAGER: "auto"  # auto, setuptools, poetry, uv
   # Security scanning controls

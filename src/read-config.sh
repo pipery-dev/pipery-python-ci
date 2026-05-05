@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CONFIG_FILE="${INPUT_CONFIG_FILE:-.github/pipery/config.yaml}"
+CONFIG_FILE="${INPUT_CONFIG_FILE:-.pipery/config.yaml}"
 
 if [ ! -f "${CONFIG_FILE}" ]; then
   echo "Config file not found: ${CONFIG_FILE} — skipping"
