@@ -70,21 +70,11 @@ setup:
   stage: setup
   image: python:${PYTHON_VERSION}-slim
   script:
-    - echo "Setting up Python CI environment..."
-    - python --version
-    - pip --version
-    - cd $PROJECT_PATH
-    - |
-      if [ "$PACKAGE_MANAGER" = "poetry" ] || [ "$PACKAGE_MANAGER" = "auto" ] && [ -f "pyproject.toml" ]; then
-        pip install poetry
-        poetry install
-      elif [ "$PACKAGE_MANAGER" = "uv" ]; then
-        pip install uv
-        uv pip install -e .
-      else
-        pip install -e .
-      fi
-    - echo "Setup complete"
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/setup-psh.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_LOG_FILE: $LOG_FILE
   artifacts:
     paths:
       - $PROJECT_PATH/.venv/
@@ -97,14 +87,13 @@ setup:
 sast_scan:
   stage: sast
   image: python:${PYTHON_VERSION}-slim
-  before_script:
-    - pip install bandit pipery-tooling
   script:
-    - echo "Running SAST scan using pipery-tooling..."
-    - pipery-tooling sast --project-path $PROJECT_PATH --config $CONFIG_FILE --log-file $LOG_FILE
-    - echo "Running Bandit SAST scan..."
-    - bandit -r $PROJECT_PATH -f json -o bandit-report.json || true
-    - echo "SAST scan complete"
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/step-sast.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_CONFIG_FILE: $CONFIG_FILE
+    INPUT_LOG_FILE: $LOG_FILE
   allow_failure: true
   rules:
     - if: '$SKIP_SAST == "true"'
@@ -119,14 +108,13 @@ sast_scan:
 sca_scan:
   stage: sca
   image: python:${PYTHON_VERSION}-slim
-  before_script:
-    - pip install safety pipery-tooling
   script:
-    - echo "Running SCA scan using pipery-tooling..."
-    - pipery-tooling sca --project-path $PROJECT_PATH --config $CONFIG_FILE --log-file $LOG_FILE
-    - echo "Running Safety SCA scan..."
-    - safety check --json || true
-    - echo "SCA scan complete"
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/step-sca.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_CONFIG_FILE: $CONFIG_FILE
+    INPUT_LOG_FILE: $LOG_FILE
   allow_failure: true
   rules:
     - if: '$SKIP_SCA == "true"'
@@ -144,16 +132,12 @@ sca_scan:
 lint:
   stage: lint
   image: python:${PYTHON_VERSION}-slim
-  before_script:
-    - pip install black isort pylint flake8
   script:
-    - cd $PROJECT_PATH
-    - echo "Running linters..."
-    - black --check . || true
-    - isort --check-only . || true
-    - pylint $(find . -name "*.py" -type f) || true
-    - flake8 . || true
-    - echo "Lint stage complete"
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/step-lint.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_LOG_FILE: $LOG_FILE
   rules:
     - if: '$SKIP_LINT == "true"'
       when: never
@@ -167,14 +151,13 @@ lint:
 build:
   stage: build
   image: python:${PYTHON_VERSION}-slim
-  before_script:
-    - pip install build wheel setuptools
   script:
-    - cd $PROJECT_PATH
-    - echo "Building Python package..."
-    - python -m build
-    - ls -la dist/
-    - echo "Build complete"
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/step-build.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_PACKAGE_MANAGER: $PACKAGE_MANAGER
+    INPUT_LOG_FILE: $LOG_FILE
   rules:
     - if: '$SKIP_BUILD == "true"'
       when: never
@@ -195,17 +178,13 @@ test:
   dependencies:
     - build
     - setup
-  before_script:
-    - pip install pytest pytest-cov
   script:
-    - cd $PROJECT_PATH
-    - |
-      if [ -z "$TESTS_PATH" ]; then
-        TESTS_PATH="."
-      fi
-    - echo "Running tests with pytest from: $TESTS_PATH"
-    - pytest $TESTS_PATH -v --cov=$PROJECT_PATH --cov-report=html --cov-report=xml --cov-report=term
-    - echo "Tests complete"
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/step-test.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_TESTS_PATH: $TESTS_PATH
+    INPUT_LOG_FILE: $LOG_FILE
   rules:
     - if: '$SKIP_TEST == "true"'
       when: never
@@ -228,19 +207,13 @@ test:
 versioning:
   stage: versioning
   image: python:${PYTHON_VERSION}-slim
-  before_script:
-    - pip install pipery-tooling
   script:
-    - echo "Running versioning step..."
-    - pipery-tooling version --project-path $PROJECT_PATH --version-bump $VERSION_BUMP --log-file $LOG_FILE
-    - echo "Versioning complete"
-    - |
-      if [ -f "$PROJECT_PATH/setup.py" ]; then
-        grep -E "version\s*=" $PROJECT_PATH/setup.py | head -1 > version_info.txt
-      elif [ -f "$PROJECT_PATH/pyproject.toml" ]; then
-        grep -E "version\s*=" $PROJECT_PATH/pyproject.toml | head -1 > version_info.txt
-      fi
-    - cat version_info.txt
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/step-version.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_VERSION_BUMP: $VERSION_BUMP
+    INPUT_LOG_FILE: $LOG_FILE
   rules:
     - if: '$SKIP_VERSIONING == "true"'
       when: never
@@ -262,10 +235,11 @@ packaging:
     - build
     - versioning
   script:
-    - echo "Verifying Python package..."
-    - cd $PROJECT_PATH
-    - ls -la dist/
-    - echo "Package verification complete"
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/step-package.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_LOG_FILE: $LOG_FILE
   rules:
     - if: '$SKIP_PACKAGING == "true"'
       when: never
@@ -285,22 +259,14 @@ release:
   dependencies:
     - versioning
     - packaging
-  before_script:
-    - pip install twine
   script:
-    - echo "Publishing to Python registry: $REGISTRY"
-    - |
-      if [ -z "$PYPI_TOKEN" ]; then
-        echo "ERROR: PYPI_TOKEN not set"
-        exit 1
-      fi
-    - |
-      if [ "$REGISTRY" = "pypi" ]; then
-        python -m twine upload dist/* -u __token__ -p $PYPI_TOKEN
-      else
-        python -m twine upload dist/* --repository-url $REGISTRY -u __token__ -p $PYPI_TOKEN
-      fi
-    - echo "Release complete"
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/step-release.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_PYPI_TOKEN: $PYPI_TOKEN
+    INPUT_REGISTRY: $REGISTRY
+    INPUT_LOG_FILE: $LOG_FILE
   rules:
     - if: '$SKIP_RELEASE == "true"'
       when: never
@@ -318,13 +284,13 @@ reintegration:
   stage: reintegration
   image: alpine:latest
   script:
-    - echo "Reintegration step would update target branch..."
-    - |
-      if [ -z "$GITHUB_TOKEN" ]; then
-        echo "Skipping reintegration: GITHUB_TOKEN not set"
-        exit 0
-      fi
-    - echo "Reintegration complete"
+    # Refactored: Call shared script instead of inline logic
+    - bash ./src/step-reintegrate.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_LOG_FILE: $LOG_FILE
+    INPUT_TARGET_BRANCH: $TARGET_BRANCH
+    GITHUB_TOKEN: $GITHUB_TOKEN
   rules:
     - if: '$SKIP_REINTEGRATION == "true"'
       when: never
