@@ -14,8 +14,8 @@ variables:
   PROJECT_PATH: "."
   CONFIG_FILE: ".pipery/config.yaml"
   PYTHON_VERSION: "3.11"
-  PACKAGE_MANAGER: "auto"  # auto, setuptools, poetry, uv
-  # Security scanning controls
+  PACKAGE_MANAGER: "auto"
+  TESTS_PATH: ""
   SKIP_SAST: "false"
   SKIP_SCA: "false"
   SKIP_LINT: "false"
@@ -25,15 +25,10 @@ variables:
   SKIP_PACKAGING: "false"
   SKIP_RELEASE: "false"
   SKIP_REINTEGRATION: "false"
-  # Build configuration
-  TESTS_PATH: ""  # Leave empty to default to project_path
   VERSION_BUMP: "patch"
-  # Registry configuration
   REGISTRY: "pypi"
-  # Secrets (set in GitLab Protected Variables)
-  # PYPI_TOKEN: (set in GitLab Protected Variables)
-  # GITHUB_TOKEN: (set in GitLab Protected Variables)
-  # Logging
+  PYPI_TOKEN: ""
+  GITHUB_TOKEN: ""
   LOG_FILE: "pipery.jsonl"
   TARGET_BRANCH: "main"
 
@@ -267,6 +262,7 @@ release:
     INPUT_PYPI_TOKEN: $PYPI_TOKEN
     INPUT_REGISTRY: $REGISTRY
     INPUT_LOG_FILE: $LOG_FILE
+    GITHUB_SHA: $CI_COMMIT_SHA
   rules:
     - if: '$SKIP_RELEASE == "true"'
       when: never
