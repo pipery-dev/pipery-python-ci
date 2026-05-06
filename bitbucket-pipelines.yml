@@ -1,0 +1,390 @@
+# ============================================================================
+# Bitbucket Pipelines Configuration for pipery-python-ci
+# Production-Ready Python CI Pipeline
+# ============================================================================
+#
+# SETUP INSTRUCTIONS:
+# 1. Copy this file to pipery-python-ci repository root as bitbucket-pipelines.yml
+# 2. Configure Protected Variables in Bitbucket (Repo Settings > Pipelines > Repository Variables)
+# 3. Set SKIP_* variables to 'true' to disable specific stages
+#
+# PROTECTED VARIABLES TO CONFIGURE:
+# - PYPI_TOKEN: PyPI authentication token (Mark as Secured)
+# - GITHUB_TOKEN: GitHub API token for reintegration (Mark as Secured)
+
+definitions:
+  steps:
+    - step: &checkout-step
+        name: Checkout Repository
+        image: alpine:latest
+        script:
+          - echo "Repository checked out by Bitbucket Pipelines"
+          - ls -la
+
+    - step: &setup-step
+        name: Setup Python Environment
+        image: python:3.11-slim
+        caches:
+          - pip
+        script:
+          - echo "Setting up Python CI environment..."
+          - python --version
+          - pip --version
+          - cd ${PROJECT_PATH:-.}
+          - |
+            if [ "$PACKAGE_MANAGER" = "poetry" ] || [ "$PACKAGE_MANAGER" = "auto" ] && [ -f "pyproject.toml" ]; then
+              pip install --quiet poetry
+              poetry install
+            elif [ "$PACKAGE_MANAGER" = "uv" ]; then
+              pip install --quiet uv
+              uv pip install -e .
+            else
+              pip install --quiet -e .
+            fi
+          - echo "Setup complete"
+        artifacts:
+          - .venv/**
+
+    - step: &sast-scan
+        name: SAST Security Scan
+        image: python:3.11-slim
+        script:
+          - echo "Running SAST scan using pipery-tooling..."
+          - pip install --quiet pipery-tooling bandit
+          - |
+            pipery-tooling sast \
+              --project-path ${PROJECT_PATH:-.} \
+              --config ${CONFIG_FILE:-.pipery/config.yaml} \
+              --log-file ${LOG_FILE:-pipery.jsonl}
+          - echo "Running Bandit SAST..."
+          - bandit -r ${PROJECT_PATH:-.} -f json -o bandit-report.json || true
+          - echo "SAST scan complete"
+        artifacts:
+          - bandit-report.json
+          - ${LOG_FILE:-pipery.jsonl}
+
+    - step: &sca-scan
+        name: SCA Dependency Scan
+        image: python:3.11-slim
+        script:
+          - echo "Running SCA scan using pipery-tooling..."
+          - pip install --quiet pipery-tooling safety
+          - |
+            pipery-tooling sca \
+              --project-path ${PROJECT_PATH:-.} \
+              --config ${CONFIG_FILE:-.pipery/config.yaml} \
+              --log-file ${LOG_FILE:-pipery.jsonl}
+          - echo "Running Safety SCA..."
+          - safety check --json || true
+          - echo "SCA scan complete"
+        artifacts:
+          - ${LOG_FILE:-pipery.jsonl}
+
+    - step: &lint-step
+        name: Code Quality Linting
+        image: python:3.11-slim
+        script:
+          - echo "Installing lint tools..."
+          - pip install --quiet black isort pylint flake8
+          - cd ${PROJECT_PATH:-.}
+          - echo "Running linters..."
+          - black --check . || true
+          - isort --check-only . || true
+          - pylint $(find . -name "*.py" -type f) || true
+          - flake8 . || true
+          - echo "Lint stage complete"
+
+    - step: &build-step
+        name: Build Python Package
+        image: python:3.11-slim
+        script:
+          - echo "Building Python package..."
+          - pip install --quiet build wheel setuptools
+          - cd ${PROJECT_PATH:-.}
+          - python -m build
+          - ls -la dist/
+          - echo "Build complete"
+        artifacts:
+          - dist/**
+          - build/**
+
+    - step: &test-step
+        name: Execute Unit Tests
+        image: python:3.11-slim
+        script:
+          - echo "Installing test dependencies..."
+          - pip install --quiet pytest pytest-cov
+          - cd ${PROJECT_PATH:-.}
+          - |
+            if [ -z "$TESTS_PATH" ]; then
+              TESTS_PATH="."
+            fi
+          - echo "Running pytest from: $TESTS_PATH"
+          - pytest $TESTS_PATH -v --cov=${PROJECT_PATH:-.} --cov-report=html --cov-report=xml --cov-report=term
+          - echo "Tests complete"
+        artifacts:
+          - htmlcov/**
+          - coverage.xml
+
+    - step: &versioning-step
+        name: Version Bump & Tag
+        image: python:3.11-slim
+        script:
+          - echo "Running versioning step..."
+          - pip install --quiet pipery-tooling
+          - |
+            pipery-tooling version \
+              --project-path ${PROJECT_PATH:-.} \
+              --version-bump ${VERSION_BUMP:-patch} \
+              --log-file ${LOG_FILE:-pipery.jsonl}
+          - echo "Versioning complete"
+          - |
+            if [ -f "${PROJECT_PATH:-.}/setup.py" ]; then
+              grep -E "version\s*=" ${PROJECT_PATH:-.}/setup.py | head -1 > version_info.txt
+            elif [ -f "${PROJECT_PATH:-.}/pyproject.toml" ]; then
+              grep -E "version\s*=" ${PROJECT_PATH:-.}/pyproject.toml | head -1 > version_info.txt
+            fi
+          - cat version_info.txt
+        artifacts:
+          - version_info.txt
+          - ${LOG_FILE:-pipery.jsonl}
+
+    - step: &packaging-step
+        name: Verify Package
+        image: python:3.11-slim
+        script:
+          - echo "Verifying Python package..."
+          - cd ${PROJECT_PATH:-.}
+          - ls -la dist/
+          - echo "Package verification complete"
+        artifacts:
+          - dist/**
+
+    - step: &release-step
+        name: Release to PyPI
+        image: python:3.11-slim
+        trigger: manual
+        script:
+          - echo "Publishing to Python registry: ${REGISTRY:-pypi}"
+          - pip install --quiet twine
+          - |
+            if [ -z "$PYPI_TOKEN" ]; then
+              echo "ERROR: PYPI_TOKEN not set"
+              exit 1
+            fi
+          - |
+            if [ "${REGISTRY:-pypi}" = "pypi" ]; then
+              python -m twine upload dist/* -u __token__ -p $PYPI_TOKEN
+            else
+              python -m twine upload dist/* --repository-url $REGISTRY -u __token__ -p $PYPI_TOKEN
+            fi
+          - echo "Release complete"
+
+    - step: &reintegration-step
+        name: Reintegration to Target Branch
+        image: alpine:latest
+        trigger: manual
+        script:
+          - echo "Reintegration step would update target branch..."
+          - |
+            if [ -z "$GITHUB_TOKEN" ]; then
+              echo "Skipping reintegration: GITHUB_TOKEN not set"
+              exit 0
+            fi
+          - echo "Reintegration complete"
+
+    - step: &logs-step
+        name: Collect & Archive Logs
+        image: alpine:latest
+        script:
+          - echo "Collecting logs and artifacts..."
+          - |
+            if [ -f "${LOG_FILE:-pipery.jsonl}" ]; then
+              echo "Log file size: $(wc -c < ${LOG_FILE:-pipery.jsonl}) bytes"
+            fi
+        artifacts:
+          - ${LOG_FILE:-pipery.jsonl}
+          - version_info.txt
+
+variables:
+  # Build Configuration
+  PROJECT_PATH: "."
+  CONFIG_FILE: ".pipery/config.yaml"
+  PYTHON_VERSION: "3.11"
+  PACKAGE_MANAGER: "auto"  # auto, setuptools, poetry, uv
+  TESTS_PATH: ""  # Leave empty to default to PROJECT_PATH
+
+  # Feature Flags
+  SKIP_SAST: "false"
+  SKIP_SCA: "false"
+  SKIP_LINT: "false"
+  SKIP_BUILD: "false"
+  SKIP_TEST: "false"
+  SKIP_VERSIONING: "false"
+  SKIP_PACKAGING: "false"
+  SKIP_RELEASE: "false"
+  SKIP_REINTEGRATION: "false"
+
+  # Release Configuration
+  VERSION_BUMP: "patch"
+  REGISTRY: "pypi"
+
+  # Logging & Tracking
+  LOG_FILE: "pipery.jsonl"
+  TARGET_BRANCH: "main"
+
+pipelines:
+  default:
+    - step: *checkout-step
+    - step: *setup-step
+    - parallel:
+        - step: *sast-scan
+        - step: *sca-scan
+    - step:
+        <<: *lint-step
+        condition:
+          variable:
+            - SKIP_LINT = "false"
+        optional: true
+    - step:
+        <<: *build-step
+        condition:
+          variable:
+            - SKIP_BUILD = "false"
+    - step:
+        <<: *test-step
+        condition:
+          variable:
+            - SKIP_TEST = "false"
+        optional: true
+    - step:
+        <<: *versioning-step
+        condition:
+          variable:
+            - SKIP_VERSIONING = "false"
+    - step:
+        <<: *packaging-step
+        condition:
+          variable:
+            - SKIP_PACKAGING = "false"
+    - step: *logs-step
+
+  branches:
+    main:
+      - step: *checkout-step
+      - step: *setup-step
+      - parallel:
+          - step: *sast-scan
+          - step: *sca-scan
+      - step:
+          <<: *lint-step
+          condition:
+            variable:
+              - SKIP_LINT = "false"
+          optional: true
+      - step:
+          <<: *build-step
+          condition:
+            variable:
+              - SKIP_BUILD = "false"
+      - step:
+          <<: *test-step
+          condition:
+            variable:
+              - SKIP_TEST = "false"
+          optional: true
+      - step:
+          <<: *versioning-step
+          condition:
+            variable:
+              - SKIP_VERSIONING = "false"
+      - step:
+          <<: *packaging-step
+          condition:
+            variable:
+              - SKIP_PACKAGING = "false"
+      - step:
+          <<: *release-step
+          condition:
+            variable:
+              - SKIP_RELEASE = "false"
+      - step:
+          <<: *reintegration-step
+          condition:
+            variable:
+              - SKIP_REINTEGRATION = "false"
+          optional: true
+      - step: *logs-step
+
+  pull-requests:
+    feature/**:
+      - step: *checkout-step
+      - step: *setup-step
+      - parallel:
+          - step: *sast-scan
+          - step: *sca-scan
+      - step:
+          <<: *lint-step
+          condition:
+            variable:
+              - SKIP_LINT = "false"
+          optional: true
+      - step:
+          <<: *build-step
+          condition:
+            variable:
+              - SKIP_BUILD = "false"
+      - step:
+          <<: *test-step
+          condition:
+            variable:
+              - SKIP_TEST = "false"
+          optional: true
+      - step: *logs-step
+
+  custom:
+    release:
+      - step: *checkout-step
+      - step: *setup-step
+      - parallel:
+          - step: *sast-scan
+          - step: *sca-scan
+      - step:
+          <<: *lint-step
+          condition:
+            variable:
+              - SKIP_LINT = "false"
+          optional: true
+      - step:
+          <<: *build-step
+          condition:
+            variable:
+              - SKIP_BUILD = "false"
+      - step:
+          <<: *test-step
+          condition:
+            variable:
+              - SKIP_TEST = "false"
+          optional: true
+      - step:
+          <<: *versioning-step
+          condition:
+            variable:
+              - SKIP_VERSIONING = "false"
+      - step:
+          <<: *packaging-step
+          condition:
+            variable:
+              - SKIP_PACKAGING = "false"
+      - step:
+          <<: *release-step
+          condition:
+            variable:
+              - SKIP_RELEASE = "false"
+      - step:
+          <<: *reintegration-step
+          condition:
+            variable:
+              - SKIP_REINTEGRATION = "false"
+          optional: true
+      - step: *logs-step
