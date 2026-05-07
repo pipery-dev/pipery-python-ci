@@ -314,3 +314,49 @@ publish_logs:
       - version_info.txt
     expire_in: 90 days
   when: always
+
+# ============================================================================
+# DASHBOARD LINK GENERATION
+# ============================================================================
+
+dashboard_link:
+  stage: logs
+  image: alpine:latest
+  needs:
+    - publish_logs
+  script:
+    - echo "Generating Pipery Dashboard link..."
+    - |
+      # Get the artifact URL from GitLab API
+      ARTIFACT_URL="${CI_SERVER_URL}/api/v4/projects/${CI_PROJECT_ID}/jobs/${CI_JOB_ID}/artifacts"
+      echo "Artifact URL: $ARTIFACT_URL"
+      
+      # URL encode the artifact path
+      ENCODED_URL=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$ARTIFACT_URL")
+      
+      # Create dashboard link
+      DASHBOARD_URL="https://dash.pipery.dev/?artifact=${ENCODED_URL}"
+      
+      # Output the link in markdown format
+      echo ""
+      echo "=========================================="
+      echo "Pipery Dashboard Link"
+      echo "=========================================="
+      echo "[$DASHBOARD_URL]($DASHBOARD_URL)"
+      echo ""
+      echo "Direct URL:"
+      echo "$DASHBOARD_URL"
+      echo "=========================================="
+      echo ""
+      
+      # Save to artifact file for persistence
+      mkdir -p artifacts
+      echo "DASHBOARD_URL=$DASHBOARD_URL" > artifacts/dashboard_link.env
+  artifacts:
+    paths:
+      - artifacts/
+    reports:
+      dotenv: artifacts/dashboard_link.env
+    expire_in: 90 days
+  allow_failure: true
+  when: always
