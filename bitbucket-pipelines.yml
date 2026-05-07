@@ -165,6 +165,58 @@ definitions:
           - ${LOG_FILE:-pipery.jsonl}
           - version_info.txt
 
+    - step: &dashboard-link
+        name: Pipery Dashboard Link
+        image: alpine:latest
+        optional: true
+        max-time: 5
+        script:
+          - echo "=================================================="
+          - echo "Pipery Dashboard Link Generator"
+          - echo "=================================================="
+          - echo ""
+          - # Construct artifact URL using Bitbucket's build endpoint
+          - ARTIFACT_URL="https://bitbucket.org/${BITBUCKET_REPO_FULL_NAME}/pipelines/${BITBUCKET_BUILD_NUMBER}"
+          - ""
+          - # URL encode using Python (if available) or fall back to direct URL
+          - ENCODED_ARTIFACT=$(python3 -c "import sys, urllib.parse; print(urllib.parse.quote('${ARTIFACT_URL}'))" 2>/dev/null || echo "${ARTIFACT_URL}")
+          - ""
+          - # Create dashboard URL
+          - DASHBOARD_URL="https://dash.pipery.dev/?artifact=${ENCODED_ARTIFACT}"
+          - ""
+          - echo "Build Information:"
+          - echo "  Repository: $BITBUCKET_REPO_FULL_NAME"
+          - echo "  Build: $BITBUCKET_BUILD_NUMBER"
+          - echo "  Branch: $BITBUCKET_BRANCH"
+          - echo "  Commit: $BITBUCKET_COMMIT"
+          - echo ""
+          - echo "Artifact URL:"
+          - echo "  $ARTIFACT_URL"
+          - echo ""
+          - echo "Dashboard Link:"
+          - echo "[View in Pipery Dashboard]($DASHBOARD_URL)"
+          - echo ""
+          - |
+            cat > dashboard-link.txt << 'DASHBOARD_EOF'
+            # Pipery Dashboard Link
+
+            Repository: $BITBUCKET_REPO_FULL_NAME
+            Build: $BITBUCKET_BUILD_NUMBER
+            Branch: $BITBUCKET_BRANCH
+            Commit: $BITBUCKET_COMMIT
+            Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+            ## Dashboard
+            [View in Pipery Dashboard]($DASHBOARD_URL)
+
+            ## Direct Links
+            - Bitbucket Build: https://bitbucket.org/${BITBUCKET_REPO_FULL_NAME}/pipelines/${BITBUCKET_BUILD_NUMBER}
+            DASHBOARD_EOF
+          - echo "Dashboard link info saved to dashboard-link.txt"
+          - echo "=================================================="
+        artifacts:
+          - dashboard-link.txt
+
 variables:
   # Build Configuration
   PROJECT_PATH: "."
@@ -227,6 +279,7 @@ pipelines:
           variable:
             - SKIP_PACKAGING = "false"
     - step: *logs-step
+    - step: *dashboard-link
 
   branches:
     main:
@@ -274,6 +327,7 @@ pipelines:
               - SKIP_REINTEGRATION = "false"
           optional: true
       - step: *logs-step
+      - step: *dashboard-link
 
   pull-requests:
     feature/**:
@@ -300,6 +354,7 @@ pipelines:
               - SKIP_TEST = "false"
           optional: true
       - step: *logs-step
+      - step: *dashboard-link
 
   custom:
     release:
@@ -347,3 +402,4 @@ pipelines:
               - SKIP_REINTEGRATION = "false"
           optional: true
       - step: *logs-step
+      - step: *dashboard-link
