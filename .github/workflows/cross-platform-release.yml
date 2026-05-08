@@ -1,0 +1,13 @@
+name: Cross-Platform Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+jobs:
+  cross-platform-release:
+    uses: pipery-dev/pipery-tooling/.github/workflows/pipery-cross-platform-release.yml@main
+    with:
+      repo_name: pipery-python-ci
+    secrets: inherit
