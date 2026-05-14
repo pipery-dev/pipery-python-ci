@@ -10,3 +10,4 @@ test-project/.pytest_cache/
 **/__pycache__/
 **/*.pyc
 pipery.jsonl
+*.bak

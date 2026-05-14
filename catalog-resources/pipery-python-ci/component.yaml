@@ -1,0 +1,331 @@
+spec:
+  inputs:
+    inputs:
+    - name: PROJECT_PATH
+      default: .
+      description: Path to the project source tree
+    - name: PYTHON_VERSION
+      default: '3.11'
+      description: Python runtime version
+    - name: PACKAGE_MANAGER
+      default: auto
+      description: Package Manager
+    - name: TESTS_PATH
+      default: ''
+      description: Tests Path
+    - name: VERSION_BUMP
+      default: patch
+      description: Version Bump
+    - name: REGISTRY
+      default: pypi
+      description: Registry
+    - name: PYPI_TOKEN
+      description: Pypi Token
+    - name: GITHUB_TOKEN
+      description: Github Token
+  outputs:
+  - name: LOG_FILE
+    description: Pipery JSONL log file with pipeline events
+    default: pipery.jsonl
+variables:
+  PROJECT_PATH: .
+  CONFIG_FILE: .pipery/config.yaml
+  PYTHON_VERSION: '3.11'
+  PACKAGE_MANAGER: auto
+  TESTS_PATH: ''
+  SKIP_SAST: 'false'
+  SKIP_SCA: 'false'
+  SKIP_LINT: 'false'
+  SKIP_BUILD: 'false'
+  SKIP_TEST: 'false'
+  SKIP_VERSIONING: 'false'
+  SKIP_PACKAGING: 'false'
+  SKIP_RELEASE: 'false'
+  SKIP_REINTEGRATION: 'false'
+  VERSION_BUMP: patch
+  REGISTRY: pypi
+  PYPI_TOKEN: ''
+  GITHUB_TOKEN: ''
+  LOG_FILE: pipery.jsonl
+  TARGET_BRANCH: main
+stages:
+- checkout
+- setup
+- sast
+- sca
+- lint
+- build
+- test
+- versioning
+- packaging
+- release
+- reintegration
+- logs
+checkout:
+  stage: checkout
+  image: alpine:latest
+  script:
+  - echo "Repository already checked out by GitLab CI"
+  - ls -la
+  artifacts:
+    paths:
+    - .git/
+    expire_in: 1 day
+setup:
+  stage: setup
+  image: python:${PYTHON_VERSION}-slim
+  script:
+  - bash ./src/setup-psh.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_LOG_FILE: $LOG_FILE
+  artifacts:
+    paths:
+    - $PROJECT_PATH/.venv/
+    expire_in: 1 day
+sast_scan:
+  stage: sast
+  image: python:${PYTHON_VERSION}-slim
+  script:
+  - bash ./src/step-sast.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_CONFIG_FILE: $CONFIG_FILE
+    INPUT_LOG_FILE: $LOG_FILE
+  allow_failure: true
+  rules:
+  - if: $SKIP_SAST == "true"
+    when: never
+  - when: on_success
+  artifacts:
+    paths:
+    - bandit-report.json
+    - $LOG_FILE
+    expire_in: 30 days
+sca_scan:
+  stage: sca
+  image: python:${PYTHON_VERSION}-slim
+  script:
+  - bash ./src/step-sca.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_CONFIG_FILE: $CONFIG_FILE
+    INPUT_LOG_FILE: $LOG_FILE
+  allow_failure: true
+  rules:
+  - if: $SKIP_SCA == "true"
+    when: never
+  - when: on_success
+  artifacts:
+    paths:
+    - $LOG_FILE
+    expire_in: 30 days
+lint:
+  stage: lint
+  image: python:${PYTHON_VERSION}-slim
+  script:
+  - bash ./src/step-lint.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_LOG_FILE: $LOG_FILE
+  rules:
+  - if: $SKIP_LINT == "true"
+    when: never
+  - when: on_success
+  allow_failure: true
+build:
+  stage: build
+  image: python:${PYTHON_VERSION}-slim
+  script:
+  - bash ./src/step-build.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_PACKAGE_MANAGER: $PACKAGE_MANAGER
+    INPUT_LOG_FILE: $LOG_FILE
+  rules:
+  - if: $SKIP_BUILD == "true"
+    when: never
+  - when: on_success
+  artifacts:
+    paths:
+    - $PROJECT_PATH/dist/
+    - $PROJECT_PATH/build/
+    expire_in: 1 day
+test:
+  stage: test
+  image: python:${PYTHON_VERSION}-slim
+  dependencies:
+  - build
+  - setup
+  script:
+  - bash ./src/step-test.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_TESTS_PATH: $TESTS_PATH
+    INPUT_LOG_FILE: $LOG_FILE
+  rules:
+  - if: $SKIP_TEST == "true"
+    when: never
+  - when: on_success
+  coverage: /TOTAL.*\s+(\d+%)$/
+  artifacts:
+    paths:
+    - $PROJECT_PATH/htmlcov/
+    - $PROJECT_PATH/coverage.xml
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: $PROJECT_PATH/coverage.xml
+    expire_in: 30 days
+versioning:
+  stage: versioning
+  image: python:${PYTHON_VERSION}-slim
+  script:
+  - bash ./src/step-version.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_VERSION_BUMP: $VERSION_BUMP
+    INPUT_LOG_FILE: $LOG_FILE
+  rules:
+  - if: $SKIP_VERSIONING == "true"
+    when: never
+  - when: on_success
+  artifacts:
+    paths:
+    - version_info.txt
+    - $LOG_FILE
+    expire_in: 30 days
+packaging:
+  stage: packaging
+  image: python:${PYTHON_VERSION}-slim
+  dependencies:
+  - build
+  - versioning
+  script:
+  - bash ./src/step-package.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_LOG_FILE: $LOG_FILE
+  rules:
+  - if: $SKIP_PACKAGING == "true"
+    when: never
+  - when: on_success
+  artifacts:
+    paths:
+    - $PROJECT_PATH/dist/
+    expire_in: 30 days
+release:
+  stage: release
+  image: python:${PYTHON_VERSION}-slim
+  dependencies:
+  - versioning
+  - packaging
+  script:
+  - bash ./src/step-release.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_PYPI_TOKEN: $PYPI_TOKEN
+    INPUT_REGISTRY: $REGISTRY
+    INPUT_LOG_FILE: $LOG_FILE
+    GITHUB_SHA: $CI_COMMIT_SHA
+  rules:
+  - if: $SKIP_RELEASE == "true"
+    when: never
+  - if: $CI_COMMIT_BRANCH == $TARGET_BRANCH
+    when: on_success
+  - when: manual
+  only:
+  - branches
+reintegration:
+  stage: reintegration
+  image: alpine:latest
+  script:
+  - bash ./src/step-reintegrate.sh
+  env:
+    INPUT_PROJECT_PATH: $PROJECT_PATH
+    INPUT_LOG_FILE: $LOG_FILE
+    INPUT_TARGET_BRANCH: $TARGET_BRANCH
+    GITHUB_TOKEN: $GITHUB_TOKEN
+  rules:
+  - if: $SKIP_REINTEGRATION == "true"
+    when: never
+  - if: $CI_COMMIT_BRANCH == $TARGET_BRANCH
+    when: on_success
+  - when: manual
+  allow_failure: true
+publish_logs:
+  stage: logs
+  image: alpine:latest
+  script:
+  - echo "Collecting logs and artifacts..."
+  - "if [ -f \"$LOG_FILE\" ]; then\n  echo \"Log file size: $(wc -c < $LOG_FILE) bytes\"\
+    \nfi\n"
+  artifacts:
+    paths:
+    - $LOG_FILE
+    - version_info.txt
+    expire_in: 90 days
+  when: always
+dashboard_link:
+  stage: logs
+  image: alpine:latest
+  needs:
+  - publish_logs
+  script:
+  - echo "Generating Pipery Dashboard link..."
+  - '# Get the artifact URL from GitLab API
+
+    ARTIFACT_URL="${CI_SERVER_URL}/api/v4/projects/${CI_PROJECT_ID}/jobs/${CI_JOB_ID}/artifacts"
+
+    echo "Artifact URL: $ARTIFACT_URL"
+
+
+    # URL encode the artifact path
+
+    ENCODED_URL=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''''))"
+    "$ARTIFACT_URL")
+
+
+    # Create dashboard link
+
+    DASHBOARD_URL="https://dash.pipery.dev/?artifact=${ENCODED_URL}"
+
+
+    # Output the link in markdown format
+
+    echo ""
+
+    echo "=========================================="
+
+    echo "Pipery Dashboard Link"
+
+    echo "=========================================="
+
+    echo "[$DASHBOARD_URL]($DASHBOARD_URL)"
+
+    echo ""
+
+    echo "Direct URL:"
+
+    echo "$DASHBOARD_URL"
+
+    echo "=========================================="
+
+    echo ""
+
+
+    # Save to artifact file for persistence
+
+    mkdir -p artifacts
+
+    echo "DASHBOARD_URL=$DASHBOARD_URL" > artifacts/dashboard_link.env
+
+    '
+  artifacts:
+    paths:
+    - artifacts/
+    reports:
+      dotenv: artifacts/dashboard_link.env
+    expire_in: 90 days
+  allow_failure: true
+  when: always
