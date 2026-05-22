@@ -21,3 +21,4 @@ jobs:
     uses: pipery-dev/pipery-tooling/.github/workflows/pipery-release.yml@main
     with:
       bump: ${{ inputs.bump }}
+    secrets: inherit
