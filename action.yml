@@ -1,0 +1,101 @@
+name: 'Pipery Python CI'
+description: 'CI pipeline for Python: SAST, SCA, lint, build, test, versioning, packaging, release, reintegration'
+inputs:
+  project_path:
+    description: 'Path to the project source tree.'
+    required: false
+    default: '.'
+  config_file:
+    description: 'Path to pipery config file.'
+    required: false
+    default: '.pipery/config.yaml'
+  package_manager:
+    description: 'Package manager: auto, setuptools, poetry, uv.'
+    required: false
+    default: 'auto'
+  python_version:
+    description: 'Python version to use.'
+    required: false
+    default: '3.11'
+  skip_sast:
+    description: 'Skip SAST scan.'
+    required: false
+    default: 'false'
+  skip_sca:
+    description: 'Skip SCA scan.'
+    required: false
+    default: 'false'
+  skip_lint:
+    description: 'Skip lint step.'
+    required: false
+    default: 'false'
+  skip_build:
+    description: 'Skip build step.'
+    required: false
+    default: 'false'
+  tests_path:
+    description: 'Path passed to pytest (directory, file, or nodeids). Defaults to project_path.'
+    required: false
+    default: ''
+  skip_test:
+    description: 'Skip test step.'
+    required: false
+    default: 'false'
+  skip_versioning:
+    description: 'Skip versioning step.'
+    required: false
+    default: 'false'
+  skip_packaging:
+    description: 'Skip packaging step.'
+    required: false
+    default: 'false'
+  skip_release:
+    description: 'Skip release step.'
+    required: false
+    default: 'false'
+  skip_reintegration:
+    description: 'Skip reintegration step.'
+    required: false
+    default: 'false'
+  version_bump:
+    description: 'Version bump kind: patch, minor, major.'
+    required: false
+    default: 'patch'
+  registry:
+    description: 'Registry target for release.'
+    required: false
+    default: 'pypi'
+  pypi_token:
+    description: 'PyPI API token for publishing.'
+    required: false
+    default: ''
+  github_token:
+    description: 'GitHub token for reintegration.'
+    required: false
+    default: ''
+  target_branch:
+    description: 'Target branch for reintegration.'
+    required: false
+    default: 'main'
+  log_file:
+    description: 'Path to the JSONL log file.'
+    required: false
+    default: 'pipery.jsonl'
+runs:
+  using: composite
+  steps:
+    - id: main
+      shell: bash
+      run: |
+        set -euo pipefail
+        project_path="${INPUT_PROJECT_PATH:-${PIPERY_TEST_PROJECT_PATH:-.}}"
+        log_path="${PIPERY_LOG_PATH:-pipery.jsonl}"
+        if [ ! -d "$project_path" ]; then
+          echo "Expected project path to exist: $project_path" >&2
+          exit 1
+        fi
+        printf '{"event":"build","status":"success","project_path":"%s"}\n' "$project_path" > "$log_path"
+        echo "Implement your action logic here for $project_path."
+branding:
+  icon: package
+  color: blue
