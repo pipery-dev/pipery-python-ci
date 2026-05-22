@@ -25,4 +25,23 @@ jobs:
       - uses: pipery-dev/pipery-python-ci@v1
         with:
           project_path: .
+          config_file: .pipery/config.yaml
+          package_manager: auto
+          python_version: 3.11
+          skip_sast: false
+          skip_sca: false
+          skip_lint: false
+          skip_build: false
+          tests_path: 
+          skip_test: false
+          skip_versioning: false
+          skip_packaging: false
+          skip_release: false
+          skip_reintegration: false
+          version_bump: patch
+          registry: pypi
+          pypi_token: 
+          github_token: 
+          target_branch: main
+          log_file: pipery.jsonl
 ```
