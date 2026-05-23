@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 - _Nothing yet._
 
+## [1.1.0]
+
+- _Nothing yet._
+
 ## [1.0.0]
 
 ## [1.0.1] - 2026-04-27

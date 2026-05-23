@@ -7,7 +7,7 @@ CI pipeline for Python: SAST, SCA, lint, build, test, versioning, packaging, rel
 - Owner: `pipery-dev`
 - Repository: `pipery-python-ci`
 - Marketplace category: `continuous-integration`
-- Current version: `1.0.1`
+- Current version: `1.1.0`
 
 ## Usage
 

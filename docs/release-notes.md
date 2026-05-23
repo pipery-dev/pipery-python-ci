@@ -1,10 +1,10 @@
-# Release v1.0.1
+# Release v1.1.0
 
 Repository: `pipery-dev/pipery-python-ci`
 
 ## Deployment
 
-Reference this release as `pipery-dev/pipery-python-ci@v1.0.1`, `pipery-dev/pipery-python-ci@v1.0`, or `pipery-dev/pipery-python-ci@v1`.
+Reference this release as `pipery-dev/pipery-python-ci@v1.1.0`, `pipery-dev/pipery-python-ci@v1.1`, or `pipery-dev/pipery-python-ci@v1`.
 
 ## Changelog
 
@@ -13,6 +13,10 @@ Reference this release as `pipery-dev/pipery-python-ci@v1.0.1`, `pipery-dev/pipe
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+
+- _Nothing yet._
+
+## [1.1.0]
 
 - _Nothing yet._
 
